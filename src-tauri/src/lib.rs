@@ -35,6 +35,55 @@ struct CsvState {
 
 type SharedState = Arc<RwLock<CsvState>>;
 
+type SharedStartupFile = Arc<RwLock<Option<String>>>;
+
+fn is_supported_data_file(path: &str) -> bool {
+    path.rsplit_once('.')
+        .map(|(_, extension)| matches!(extension.to_ascii_lowercase().as_str(), "csv" | "tsv"))
+        .unwrap_or(false)
+}
+
+fn startup_file_from_args(args: &[String]) -> Option<String> {
+    args.iter()
+        .skip(1)
+        .find(|arg| is_supported_data_file(arg))
+        .cloned()
+}
+
+#[tauri::command]
+fn get_startup_file(state: tauri::State<'_, SharedStartupFile>) -> Option<String> {
+    state.write().take()
+}
+
+#[cfg(test)]
+mod startup_file_tests {
+    use super::startup_file_from_args;
+
+    #[test]
+    fn finds_csv_or_tsv_argument_after_executable() {
+        let args = vec![
+            "Columnar.exe".to_string(),
+            "C:\\Data\\example file.csv".to_string(),
+        ];
+        assert_eq!(
+            startup_file_from_args(&args),
+            Some("C:\\Data\\example file.csv".to_string())
+        );
+    }
+
+    #[test]
+    fn accepts_uppercase_extensions() {
+        let args = vec!["Columnar.exe".to_string(), "report.TSV".to_string()];
+        assert_eq!(startup_file_from_args(&args), Some("report.TSV".to_string()));
+    }
+
+    #[test]
+    fn ignores_non_data_arguments() {
+        let args = vec!["Columnar.exe".to_string(), "--dev".to_string()];
+        assert_eq!(startup_file_from_args(&args), None);
+    }
+}
+
 // ── Recent files ──────────────────────────────────────────────
 
 const MAX_RECENT: usize = 10;
@@ -675,6 +724,9 @@ fn round4(v: f64) -> f64 {
 pub fn run() {
     let shared_state: SharedState = Arc::new(RwLock::new(CsvState::default()));
     let shared_recents: SharedRecents = Arc::new(RwLock::new(RecentFiles::default()));
+    let startup_file: SharedStartupFile = Arc::new(RwLock::new(
+        startup_file_from_args(&std::env::args().collect::<Vec<_>>()),
+    ));
     let recents_for_setup = shared_recents.clone();
 
     tauri::Builder::default()
@@ -682,6 +734,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(shared_state)
         .manage(shared_recents)
+        .manage(startup_file)
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -730,6 +783,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_csv,
+            get_startup_file,
             get_page,
             sort_column,
             search_csv,

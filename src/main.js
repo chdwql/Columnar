@@ -127,7 +127,24 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) {
     console.error('Event listener setup failed:', e);
   }
+
+  // A file association launches the app with the file path as a process
+  // argument. Read it after the frontend is ready so cold starts cannot lose
+  // the path before the event listeners have been registered.
+  loadStartupFile();
 });
+
+async function loadStartupFile() {
+  try {
+    const startupPath = await invoke('get_startup_file');
+    if (typeof startupPath === 'string' && startupPath.length > 0) {
+      await loadFile(startupPath);
+    }
+  } catch (err) {
+    toast(`Failed to load startup file: ${err}`, 'error');
+    console.error(err);
+  }
+}
 
 // ── File Loading ──────────────────────────────────────────────
 async function openFile() {
