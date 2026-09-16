@@ -33,6 +33,10 @@ const state = {
   rowH: 32,
   pageSize: 80,
   visibleStart: 0,
+  // Keep the browser scroll element below its maximum height and move this
+  // logical window as the user scrolls through very large files.
+  scrollBaseRow: 0,
+  adjustingScroll: false,
   renderedRows: new Map(), // rowIndex → DOM element
 
   // Sort
@@ -250,8 +254,10 @@ function renderShell() {
     el.gridHeader.appendChild(cell);
   });
 
-  // Set scroll content height for virtual scroll
-  el.scrollContent.style.height = (state.totalRows * state.rowH) + 'px';
+  // Use a browser-safe scroll window for very large files.
+  clearRenderedRows();
+  state.scrollBaseRow = 0;
+  updateScrollContentHeight();
   el.scrollContent.style.width = totalWidth() + 'px';
   el.gridHeader.style.width = totalWidth() + 'px';
 
@@ -263,8 +269,81 @@ function totalWidth() {
   return 52 + state.colWidths.reduce((a, b) => a + b, 0); // 52 = idx col
 }
 
+function scrollWindowEnd() {
+  return Math.min(state.totalRows, state.scrollBaseRow + SCROLL_WINDOW_ROWS);
+}
+
+function updateScrollContentHeight() {
+  const rowsInWindow = Math.max(0, scrollWindowEnd() - state.scrollBaseRow);
+  el.scrollContent.style.height = (rowsInWindow * state.rowH) + 'px';
+}
+
+function maxScrollBaseRow() {
+  return Math.max(0, state.totalRows - SCROLL_WINDOW_ROWS);
+}
+
+function moveScrollWindow(newBaseRow, oldScrollTop) {
+  const nextBase = Math.max(0, Math.min(maxScrollBaseRow(), newBaseRow));
+  if (nextBase === state.scrollBaseRow) return false;
+
+  const deltaRows = nextBase - state.scrollBaseRow;
+  state.scrollBaseRow = nextBase;
+  updateScrollContentHeight();
+  clearRenderedRows();
+
+  // Preserve the same logical row under the viewport after shifting the
+  // bounded DOM scroll window.
+  state.adjustingScroll = true;
+  el.scrollVP.scrollTop = Math.max(0, oldScrollTop - deltaRows * state.rowH);
+  state.adjustingScroll = false;
+  return true;
+}
+
+function recenterScrollWindow() {
+  if (state.totalRows <= SCROLL_WINDOW_ROWS || state.adjustingScroll) return false;
+
+  const scrollTop = el.scrollVP.scrollTop;
+  const vpH = el.scrollVP.clientHeight;
+  const maxScrollTop = Math.max(0, el.scrollVP.scrollHeight - vpH);
+  const edge = Math.max(vpH * 2, state.rowH * 100);
+
+  if (scrollTop >= maxScrollTop - edge && state.scrollBaseRow < maxScrollBaseRow()) {
+    return moveScrollWindow(state.scrollBaseRow + SCROLL_SHIFT_ROWS, scrollTop);
+  }
+
+  if (scrollTop <= edge && state.scrollBaseRow > 0) {
+    return moveScrollWindow(state.scrollBaseRow - SCROLL_SHIFT_ROWS, scrollTop);
+  }
+
+  return false;
+}
+
+function processScroll() {
+  if (recenterScrollWindow()) {
+    requestAnimationFrame(processScroll);
+    return;
+  }
+
+  const scrollTop = el.scrollVP.scrollTop;
+  const vpH = el.scrollVP.clientHeight;
+  const firstVisible = state.scrollBaseRow + Math.floor(scrollTop / state.rowH);
+  const lastVisible = Math.min(
+    state.totalRows - 1,
+    state.scrollBaseRow + Math.ceil((scrollTop + vpH) / state.rowH),
+  );
+
+  const bufferRows = 20;
+  const renderStart = Math.max(state.scrollBaseRow, firstVisible - bufferRows);
+  const renderEnd = Math.min(scrollWindowEnd() - 1, lastVisible + bufferRows);
+
+  renderRange(renderStart, renderEnd);
+  updateStatusScroll(firstVisible + 1);
+}
+
 // ── Virtual Scroll ────────────────────────────────────────────
 let scrollRaf = null;
+const SCROLL_WINDOW_ROWS = 400_000;
+const SCROLL_SHIFT_ROWS = 200_000;
 
 function onScroll() {
   // Sync header horizontal scroll
@@ -273,18 +352,7 @@ function onScroll() {
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = null;
-    const scrollTop = el.scrollVP.scrollTop;
-    const vpH = el.scrollVP.clientHeight;
-    const firstVisible = Math.floor(scrollTop / state.rowH);
-    const lastVisible = Math.min(state.totalRows - 1, Math.ceil((scrollTop + vpH) / state.rowH));
-
-    // Render a buffer around the visible range
-    const bufferRows = 20;
-    const renderStart = Math.max(0, firstVisible - bufferRows);
-    const renderEnd = Math.min(state.totalRows - 1, lastVisible + bufferRows);
-
-    renderRange(renderStart, renderEnd);
-    updateStatusScroll(firstVisible + 1);
+    processScroll();
   });
 }
 
@@ -295,6 +363,10 @@ async function renderPage(startRow) {
 
 async function renderRange(startRow, endRow) {
   if (!state.loaded) return;
+
+  startRow = Math.max(state.scrollBaseRow, startRow);
+  endRow = Math.min(scrollWindowEnd() - 1, endRow);
+  if (startRow > endRow) return;
 
   // Determine which rows we need to fetch
   const needed = [];
@@ -335,7 +407,7 @@ async function renderRange(startRow, endRow) {
 function buildRow(rowData, rowIdx) {
   const row = document.createElement('div');
   row.className = `grid-row ${rowIdx % 2 === 0 ? 'even' : 'odd'}`;
-  row.style.top = (rowIdx * state.rowH) + 'px';
+  row.style.top = ((rowIdx - state.scrollBaseRow) * state.rowH) + 'px';
   row.dataset.row = rowIdx;
 
   // Highlight if in search results
@@ -383,7 +455,18 @@ function pruneRows(keepStart, keepEnd) {
 }
 
 function scrollTo(rowIdx) {
-  el.scrollVP.scrollTop = rowIdx * state.rowH;
+  const target = Math.max(0, Math.min(state.totalRows - 1, rowIdx));
+  const desiredBase = state.totalRows > SCROLL_WINDOW_ROWS
+    ? Math.max(0, Math.min(maxScrollBaseRow(), target - Math.floor(SCROLL_WINDOW_ROWS / 2)))
+    : 0;
+
+  if (desiredBase !== state.scrollBaseRow) {
+    state.scrollBaseRow = desiredBase;
+    updateScrollContentHeight();
+    clearRenderedRows();
+  }
+
+  el.scrollVP.scrollTop = (target - state.scrollBaseRow) * state.rowH;
 }
 
 function scrollToRow(rowIdx) {
@@ -485,7 +568,7 @@ function clearSearch() {
   el.btnClearSearch.style.display = 'none';
   if (!state.loaded) return;
   clearRenderedRows();
-  renderPage(Math.floor(el.scrollVP.scrollTop / state.rowH));
+  renderPage(state.scrollBaseRow + Math.floor(el.scrollVP.scrollTop / state.rowH));
 }
 
 // ── Column Stats Modal ────────────────────────────────────────
