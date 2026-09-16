@@ -69,6 +69,7 @@ Get the latest installer for your operating system from the [Releases page](http
 - Native menu bar with File → Open File and File → Recent Files
 - Recent files persist between sessions (last 10 files)
 - Clear recent files from the menu
+- Windows `.csv` and `.tsv` files can be opened directly with Columnar after installation
 
 ### Keyboard shortcuts
 
