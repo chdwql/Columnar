@@ -348,8 +348,9 @@ body.drag-over #empty-inner {
   overflow: hidden;
   position: relative;
   z-index: 5;
-  /* horizontal scroll synced with viewport */
+  /* Horizontal position is synchronized with #scroll-viewport in main.js. */
   overflow-x: hidden;
+  will-change: transform;
 }
 
 .col-header {

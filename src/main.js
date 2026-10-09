@@ -262,6 +262,8 @@ function renderShell() {
   el.gridHeader.style.width = totalWidth() + 'px';
 
   // Sync horizontal scroll of header with viewport
+  el.scrollVP.scrollLeft = 0;
+  syncHeaderHorizontalScroll();
   el.scrollVP.addEventListener('scroll', onScroll, { passive: true });
 }
 
@@ -340,6 +342,13 @@ function processScroll() {
   updateStatusScroll(firstVisible + 1);
 }
 
+function syncHeaderHorizontalScroll() {
+  const offset = el.scrollVP.scrollLeft;
+  // The header itself is wider than the viewport but is not a scroll
+  // container. Translate it to mirror the data viewport's horizontal offset.
+  el.gridHeader.style.transform = `translate3d(${-offset}px, 0, 0)`;
+}
+
 // ── Virtual Scroll ────────────────────────────────────────────
 let scrollRaf = null;
 const SCROLL_WINDOW_ROWS = 400_000;
@@ -347,7 +356,7 @@ const SCROLL_SHIFT_ROWS = 200_000;
 
 function onScroll() {
   // Sync header horizontal scroll
-  el.gridHeader.scrollLeft = el.scrollVP.scrollLeft;
+  syncHeaderHorizontalScroll();
 
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
