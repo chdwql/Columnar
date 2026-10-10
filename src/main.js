@@ -79,6 +79,7 @@ const el = {
   loadingLabel: $('loading-label'),
   toastContainer: $('toast-container'),
   contextMenu: $('app-context-menu'),
+  toggleNativeMenu: $('toggle-native-menu'),
   toggleChrome: $('toggle-chrome'),
 
   // Stats modal
@@ -784,20 +785,30 @@ function bindUI() {
 function bindContextMenu() {
   const savedHidden = localStorage.getItem('columnar.chromeHidden') === 'true';
   setChromeHidden(savedHidden);
+  const savedNativeMenuHidden = localStorage.getItem('columnar.nativeMenuHidden') === 'true';
+  setNativeMenuHidden(savedNativeMenuHidden);
 
   document.addEventListener('contextmenu', e => {
     if (e.target.closest('.modal') || e.target.closest('#app-context-menu')) return;
     e.preventDefault();
 
+    el.toggleNativeMenu.textContent = isNativeMenuHidden()
+      ? '显示原生菜单栏'
+      : '隐藏原生菜单栏';
     el.toggleChrome.textContent = document.body.classList.contains('chrome-hidden')
-      ? '显示菜单栏'
-      : '隐藏菜单栏';
+      ? '显示应用工具栏'
+      : '隐藏应用工具栏';
 
     el.contextMenu.style.display = 'block';
     const maxX = window.innerWidth - el.contextMenu.offsetWidth - 8;
     const maxY = window.innerHeight - el.contextMenu.offsetHeight - 8;
     el.contextMenu.style.left = `${Math.min(e.clientX, maxX)}px`;
     el.contextMenu.style.top = `${Math.min(e.clientY, maxY)}px`;
+  });
+
+  el.toggleNativeMenu.addEventListener('click', async () => {
+    await setNativeMenuHidden(!isNativeMenuHidden());
+    hideContextMenu();
   });
 
   el.toggleChrome.addEventListener('click', () => {
@@ -813,6 +824,19 @@ function bindContextMenu() {
 function setChromeHidden(hidden) {
   document.body.classList.toggle('chrome-hidden', hidden);
   localStorage.setItem('columnar.chromeHidden', String(hidden));
+}
+
+function isNativeMenuHidden() {
+  return localStorage.getItem('columnar.nativeMenuHidden') === 'true';
+}
+
+async function setNativeMenuHidden(hidden) {
+  try {
+    await invoke('set_native_menu_visible', { visible: !hidden });
+    localStorage.setItem('columnar.nativeMenuHidden', String(hidden));
+  } catch (err) {
+    toast(`Failed to update native menu: ${err}`, 'error');
+  }
 }
 
 function hideContextMenu() {

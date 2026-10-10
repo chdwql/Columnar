@@ -55,6 +55,17 @@ fn get_startup_file(state: tauri::State<'_, SharedStartupFile>) -> Option<String
     state.write().take()
 }
 
+#[tauri::command]
+fn set_native_menu_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+    let result = if visible {
+        app.show_menu()
+    } else {
+        app.hide_menu()
+    };
+
+    result.map_err(|e| format!("failed to update native menu visibility: {e}"))
+}
+
 #[cfg(test)]
 mod startup_file_tests {
     use super::startup_file_from_args;
@@ -784,6 +795,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_csv,
             get_startup_file,
+            set_native_menu_visible,
             get_page,
             sort_column,
             search_csv,
