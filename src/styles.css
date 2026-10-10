@@ -73,6 +73,18 @@ body {
     "statusbar";
 }
 
+body.chrome-hidden {
+  grid-template-rows: 1fr var(--statusbar-h);
+  grid-template-areas:
+    "main"
+    "statusbar";
+}
+
+body.chrome-hidden #topbar,
+body.chrome-hidden #toolbar {
+  display: none;
+}
+
 /* ── Top Bar ─────────────────────────────────────────────────── */
 #topbar {
   grid-area: topbar;
@@ -142,6 +154,32 @@ body {
   padding: 0 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+}
+
+/* ── Context Menu ───────────────────────────────────────────── */
+.context-menu {
+  position: fixed;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+  z-index: 400;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
 }
 
 #search-wrap {
@@ -545,6 +583,24 @@ mark {
 }
 
 .modal-sm { min-width: 280px; max-width: 320px; }
+
+.cell-preview-modal {
+  min-width: min(420px, calc(100vw - 32px));
+  max-width: min(760px, calc(100vw - 32px));
+}
+
+.cell-preview-value {
+  max-height: min(60vh, 560px);
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  user-select: text;
+}
 
 .modal-header {
   display: flex;

@@ -78,6 +78,8 @@ const el = {
   loading: $('loading-overlay'),
   loadingLabel: $('loading-label'),
   toastContainer: $('toast-container'),
+  contextMenu: $('app-context-menu'),
+  toggleChrome: $('toggle-chrome'),
 
   // Stats modal
   statsOverlay: $('stats-overlay'),
@@ -91,6 +93,13 @@ const el = {
   gotoConfirm: $('goto-confirm'),
   gotoClose: $('goto-close'),
   gotoHint: $('goto-hint'),
+
+  // Cell preview modal
+  cellPreviewOverlay: $('cell-preview-overlay'),
+  cellPreviewTitle: $('cell-preview-title'),
+  cellPreviewMeta: $('cell-preview-meta'),
+  cellPreviewValue: $('cell-preview-value'),
+  cellPreviewClose: $('cell-preview-close'),
 };
 
 // ── Entry point ───────────────────────────────────────────────
@@ -98,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindUI();
   bindKeyboard();
   bindDragDrop();
+  bindContextMenu();
 
   // ── Menu + progress event listeners ───────────────────────
   // Both are guarded so missing APIs or failures never break the app.
@@ -436,6 +446,10 @@ function buildRow(rowData, rowIdx) {
     cell.className = 'grid-cell';
     cell.style.width = state.colWidths[colIdx] + 'px';
     cell.title = val;
+    cell.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      showCellPreview(val, colIdx, rowIdx);
+    });
 
     if (state.searchQuery && val.toLowerCase().includes(state.searchQuery.toLowerCase())) {
       cell.classList.add('cell-match');
@@ -623,6 +637,17 @@ function closeStats() {
   el.statsOverlay.style.display = 'none';
 }
 
+function showCellPreview(value, colIdx, rowIdx) {
+  el.cellPreviewTitle.textContent = state.headers[colIdx] || `Column ${colIdx + 1}`;
+  el.cellPreviewMeta.textContent = `Row ${fmt(rowIdx + 1)} · ${value.length} characters`;
+  el.cellPreviewValue.textContent = value || '(empty)';
+  el.cellPreviewOverlay.style.display = 'flex';
+}
+
+function closeCellPreview() {
+  el.cellPreviewOverlay.style.display = 'none';
+}
+
 // ── Go To Row Modal ───────────────────────────────────────────
 function openGoto() {
   el.gotoHint.textContent = `1 – ${fmt(state.totalRows)}`;
@@ -694,6 +719,8 @@ function bindKeyboard() {
     if (ctrl && e.key === 'g') { e.preventDefault(); if (state.loaded) openGoto(); return; }
 
     if (e.key === 'Escape') {
+      if (el.contextMenu.style.display !== 'none') { hideContextMenu(); return; }
+      if (el.cellPreviewOverlay.style.display !== 'none') { closeCellPreview(); return; }
       if (el.statsOverlay.style.display !== 'none') { closeStats(); return; }
       if (el.gotoOverlay.style.display !== 'none') { closeGoto(); return; }
       if (state.searchQuery) { clearSearch(); return; }
@@ -744,12 +771,52 @@ function bindUI() {
   $('btn-clear-search').addEventListener('click', clearSearch);
   el.searchInput.addEventListener('input', onSearchInput);
   el.statsClose.addEventListener('click', closeStats);
+  el.cellPreviewClose.addEventListener('click', closeCellPreview);
   el.gotoClose.addEventListener('click', closeGoto);
   el.gotoConfirm.addEventListener('click', confirmGoto);
 
   // Close modals on overlay click
   el.statsOverlay.addEventListener('click', e => { if (e.target === el.statsOverlay) closeStats(); });
+  el.cellPreviewOverlay.addEventListener('click', e => { if (e.target === el.cellPreviewOverlay) closeCellPreview(); });
   el.gotoOverlay.addEventListener('click', e => { if (e.target === el.gotoOverlay) closeGoto(); });
+}
+
+function bindContextMenu() {
+  const savedHidden = localStorage.getItem('columnar.chromeHidden') === 'true';
+  setChromeHidden(savedHidden);
+
+  document.addEventListener('contextmenu', e => {
+    if (e.target.closest('.modal') || e.target.closest('#app-context-menu')) return;
+    e.preventDefault();
+
+    el.toggleChrome.textContent = document.body.classList.contains('chrome-hidden')
+      ? '显示菜单栏'
+      : '隐藏菜单栏';
+
+    el.contextMenu.style.display = 'block';
+    const maxX = window.innerWidth - el.contextMenu.offsetWidth - 8;
+    const maxY = window.innerHeight - el.contextMenu.offsetHeight - 8;
+    el.contextMenu.style.left = `${Math.min(e.clientX, maxX)}px`;
+    el.contextMenu.style.top = `${Math.min(e.clientY, maxY)}px`;
+  });
+
+  el.toggleChrome.addEventListener('click', () => {
+    setChromeHidden(!document.body.classList.contains('chrome-hidden'));
+    hideContextMenu();
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#app-context-menu')) hideContextMenu();
+  });
+}
+
+function setChromeHidden(hidden) {
+  document.body.classList.toggle('chrome-hidden', hidden);
+  localStorage.setItem('columnar.chromeHidden', String(hidden));
+}
+
+function hideContextMenu() {
+  el.contextMenu.style.display = 'none';
 }
 
 // ── Status Bar ────────────────────────────────────────────────

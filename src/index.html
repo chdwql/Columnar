@@ -59,6 +59,11 @@
     </div>
   </div>
 
+  <!-- ── Application context menu ──────────────────────────── -->
+  <div id="app-context-menu" class="context-menu" role="menu" style="display:none">
+    <button id="toggle-chrome" class="context-menu-item" type="button">隐藏菜单栏</button>
+  </div>
+
   <!-- ── Empty State ─────────────────────────────────────────── -->
   <div id="empty-state">
     <div id="empty-inner">
@@ -127,6 +132,20 @@
         <button class="btn-primary" id="goto-confirm">Jump</button>
       </div>
       <p id="goto-hint" class="meta-dim"></p>
+    </div>
+  </div>
+
+  <!-- ── Cell Preview Modal ─────────────────────────────────── -->
+  <div id="cell-preview-overlay" class="overlay" style="display:none">
+    <div id="cell-preview-modal" class="modal cell-preview-modal">
+      <div class="modal-header">
+        <div>
+          <h3 id="cell-preview-title">Cell content</h3>
+          <p id="cell-preview-meta" class="meta-dim"></p>
+        </div>
+        <button class="btn-icon modal-close" id="cell-preview-close" type="button">✕</button>
+      </div>
+      <div id="cell-preview-value" class="cell-preview-value"></div>
     </div>
   </div>
 
