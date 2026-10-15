@@ -866,11 +866,11 @@ function bindContextMenu() {
     e.preventDefault();
 
     el.toggleNativeMenu.textContent = isNativeMenuHidden()
-      ? '显示原生菜单栏'
-      : '隐藏原生菜单栏';
+      ? 'Show native menu bar'
+      : 'Hide native menu bar';
     el.toggleChrome.textContent = document.body.classList.contains('chrome-hidden')
-      ? '显示应用工具栏'
-      : '隐藏应用工具栏';
+      ? 'Show app toolbar'
+      : 'Hide app toolbar';
 
     el.contextMenu.style.display = 'block';
     const maxX = window.innerWidth - el.contextMenu.offsetWidth - 8;
