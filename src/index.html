@@ -136,6 +136,31 @@
     </div>
   </div>
 
+  <!-- ── Delimiter Selection Modal ─────────────────────────── -->
+  <div id="delimiter-overlay" class="overlay" style="display:none">
+    <div id="delimiter-modal" class="modal modal-sm">
+      <div class="modal-header">
+        <h3>Select delimiter</h3>
+        <button class="btn-icon modal-close" id="delimiter-close" type="button">✕</button>
+      </div>
+      <p class="delimiter-description">No comma separator was found in the first five rows. Choose the delimiter used by this file.</p>
+      <div class="delimiter-controls">
+        <select id="delimiter-select">
+          <option value=";" selected>Semicolon ( ; )</option>
+          <option value="&#9;">Tab</option>
+          <option value="|">Pipe ( | )</option>
+          <option value=",">Comma ( , )</option>
+          <option value="custom">Other character…</option>
+        </select>
+        <input id="delimiter-custom" type="text" maxlength="1" aria-label="Custom delimiter" placeholder="One character" style="display:none" />
+      </div>
+      <div class="delimiter-actions">
+        <button class="btn-ghost" id="delimiter-cancel" type="button">Cancel</button>
+        <button class="btn-primary" id="delimiter-confirm" type="button">Load file</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Cell Preview Modal ─────────────────────────────────── -->
   <div id="cell-preview-overlay" class="overlay" style="display:none">
     <div id="cell-preview-modal" class="modal cell-preview-modal">

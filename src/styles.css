@@ -584,6 +584,41 @@ mark {
 
 .modal-sm { min-width: 280px; max-width: 320px; }
 
+#delimiter-modal {
+  padding-bottom: 16px;
+}
+
+.delimiter-description {
+  padding: 14px 16px 0;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.delimiter-controls {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.delimiter-controls select,
+.delimiter-controls input {
+  min-width: 0;
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+}
+
+.delimiter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px;
+}
+
 .cell-preview-modal {
   min-width: min(420px, calc(100vw - 32px));
   max-width: min(760px, calc(100vw - 32px));

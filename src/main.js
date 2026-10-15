@@ -95,6 +95,14 @@ const el = {
   gotoClose: $('goto-close'),
   gotoHint: $('goto-hint'),
 
+  // Delimiter selection modal
+  delimiterOverlay: $('delimiter-overlay'),
+  delimiterSelect: $('delimiter-select'),
+  delimiterCustom: $('delimiter-custom'),
+  delimiterClose: $('delimiter-close'),
+  delimiterCancel: $('delimiter-cancel'),
+  delimiterConfirm: $('delimiter-confirm'),
+
   // Cell preview modal
   cellPreviewOverlay: $('cell-preview-overlay'),
   cellPreviewTitle: $('cell-preview-title'),
@@ -119,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tauriListen('menu://load-path', (event) => {
         const path = event.payload;
         if (typeof path === 'string' && path.length > 0) {
-          loadFile(path);
+          loadFileWithDelimiterPrompt(path);
         }
       });
 
@@ -153,7 +161,7 @@ async function loadStartupFile() {
   try {
     const startupPath = await invoke('get_startup_file');
     if (typeof startupPath === 'string' && startupPath.length > 0) {
-      await loadFile(startupPath);
+      await loadFileWithDelimiterPrompt(startupPath);
     }
   } catch (err) {
     toast(`Failed to load startup file: ${err}`, 'error');
@@ -186,16 +194,80 @@ async function openFile() {
     // User cancelled
     if (!path) return;
 
-    await loadFile(path);
+    await loadFileWithDelimiterPrompt(path);
   } catch (err) {
     toast(`Failed to open file dialog: ${err}`, 'error');
   }
 }
 
-async function loadFile(filePath) {
+async function loadFileWithDelimiterPrompt(filePath) {
+  let delimiter = null;
+  try {
+    const hasComma = await invoke('has_comma_delimiter', { filePath });
+    if (hasComma === false && !filePath.toLowerCase().endsWith('.tsv')) {
+      delimiter = await chooseDelimiter();
+      if (delimiter === null) return;
+    }
+  } catch (err) {
+    toast(`Could not inspect file delimiter: ${err}`, 'error');
+    console.error(err);
+    return;
+  }
+
+  await loadFile(filePath, delimiter);
+}
+
+async function chooseDelimiter() {
+  return new Promise(resolve => {
+    const finish = delimiter => {
+      el.delimiterOverlay.style.display = 'none';
+      resolve(delimiter);
+    };
+
+    const onConfirm = () => {
+      const delimiter = el.delimiterSelect.value === 'custom'
+        ? el.delimiterCustom.value
+        : el.delimiterSelect.value;
+      if (delimiter.length !== 1 || delimiter.charCodeAt(0) > 0x7f || delimiter === '"' || delimiter === '\r' || delimiter === '\n') {
+        toast('Enter exactly one valid delimiter character', 'error');
+        return;
+      }
+      cleanup();
+      finish(delimiter);
+    };
+    const onCancel = () => { cleanup(); finish(null); };
+    const onSelectChange = () => {
+      el.delimiterCustom.style.display = el.delimiterSelect.value === 'custom' ? '' : 'none';
+      if (el.delimiterSelect.value === 'custom') el.delimiterCustom.focus();
+    };
+    const onOverlayClick = e => { if (e.target === el.delimiterOverlay) onCancel(); };
+    const onKeyDown = e => { if (e.key === 'Escape') onCancel(); };
+    const cleanup = () => {
+      el.delimiterConfirm.removeEventListener('click', onConfirm);
+      el.delimiterCancel.removeEventListener('click', onCancel);
+      el.delimiterClose.removeEventListener('click', onCancel);
+      el.delimiterSelect.removeEventListener('change', onSelectChange);
+      el.delimiterOverlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+
+    el.delimiterSelect.value = ';';
+    el.delimiterCustom.value = '';
+    el.delimiterCustom.style.display = 'none';
+    el.delimiterConfirm.addEventListener('click', onConfirm);
+    el.delimiterCancel.addEventListener('click', onCancel);
+    el.delimiterClose.addEventListener('click', onCancel);
+    el.delimiterSelect.addEventListener('change', onSelectChange);
+    el.delimiterOverlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKeyDown);
+    el.delimiterOverlay.style.display = 'flex';
+  });
+}
+
+async function loadFile(filePath, delimiter = null) {
   showLoading('Loading file…');
   try {
-    const result = await invoke('load_csv', { filePath });
+    const result = await invoke('load_csv', { filePath, delimiter });
     if (!result) throw new Error('No data returned from backend');
 
     state.loaded = true;
@@ -723,6 +795,7 @@ function bindKeyboard() {
       if (el.contextMenu.style.display !== 'none') { hideContextMenu(); return; }
       if (el.cellPreviewOverlay.style.display !== 'none') { closeCellPreview(); return; }
       if (el.statsOverlay.style.display !== 'none') { closeStats(); return; }
+      if (el.delimiterOverlay.style.display !== 'none') return;
       if (el.gotoOverlay.style.display !== 'none') { closeGoto(); return; }
       if (state.searchQuery) { clearSearch(); return; }
     }

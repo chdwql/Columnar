@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::path::PathBuf;
+use std::io::Read;
 use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 use memmap2::Mmap;
@@ -346,11 +347,44 @@ fn parse_row_at(
 // ── Commands ──────────────────────────────────────────────────
 
 #[tauri::command]
+fn has_comma_delimiter(file_path: String) -> Result<bool, String> {
+    if file_path.to_ascii_lowercase().ends_with(".tsv") {
+        return Ok(false);
+    }
+
+    let mut file = std::fs::File::open(&file_path)
+        .map_err(|e| format!("Cannot inspect file: {e}"))?;
+    let mut sample = vec![0; 64 * 1024];
+    let bytes_read = file.read(&mut sample)
+        .map_err(|e| format!("Cannot inspect file: {e}"))?;
+    sample.truncate(bytes_read);
+
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b',')
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(sample.as_slice());
+
+    let mut record = csv::StringRecord::new();
+    for _ in 0..5 {
+        match reader.read_record(&mut record) {
+            Ok(true) if record.len() > 1 => return Ok(true),
+            Ok(true) => {}
+            Ok(false) => break,
+            Err(_) => break,
+        }
+    }
+
+    Ok(false)
+}
+
+#[tauri::command]
 async fn load_csv(
     app: AppHandle,
     state: tauri::State<'_, SharedState>,
     recents: tauri::State<'_, SharedRecents>,
     file_path: String,
+    delimiter: Option<String>,
 ) -> Result<LoadResult, String> {
     let state_arc = state.inner().clone();
     let recents_arc = recents.inner().clone();
@@ -372,7 +406,17 @@ async fn load_csv(
                 .map_err(|e| e.to_string())?
         };
 
-        let delimiter = if file_path_task.ends_with(".tsv") { b'\t' } else { b',' };
+        let delimiter = if let Some(delimiter) = delimiter {
+            let bytes = delimiter.as_bytes();
+            if bytes.len() != 1 || matches!(bytes[0], b'"' | b'\r' | b'\n') {
+                return Err("Delimiter must be one ASCII character other than a quote or line break.".into());
+            }
+            bytes[0]
+        } else if file_path_task.to_ascii_lowercase().ends_with(".tsv") {
+            b'\t'
+        } else {
+            b','
+        };
 
         let (headers, row_offsets) = build_index(&app_for_task, &mmap, delimiter)
             .map_err(|e| e.to_string())?;
@@ -794,6 +838,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_csv,
+            has_comma_delimiter,
             get_startup_file,
             set_native_menu_visible,
             get_page,
